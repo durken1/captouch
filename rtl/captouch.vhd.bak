@@ -54,18 +54,18 @@ use ieee.numeric_std.all;
 
 entity captouch is
   generic (
-    F_CLOCK     : integer := 50000000; -- frequency of clk_i in Hz
-    NUM_PADS    : integer := 9; -- number of touch pads
-    SENSITIVITY : integer := 2 -- 1=high, 2=medium, 3=low
+    F_CLOCK     : integer; -- frequency of clk_i in Hz
+    NUM_PADS    : integer; -- number of touch pads
+    SENSITIVITY : integer  -- 1=high, 2=medium, 3=low
   );
   port (
     -- global control --
-    clk_i       : in    std_logic; -- clock
-    rstn_i      : in    std_logic; -- async reset, low-active
-    rstn_sync_i : in    std_logic; -- sync reset, low-active
+    clk_i       : in    std_ulogic; -- clock
+    rstn_i      : in    std_ulogic; -- async reset, low-active
+    rstn_sync_i : in    std_ulogic; -- sync reset, low-active
     -- status --
-    ready_o     : out   std_logic; -- system calibration done when high
-    touch_o     : out   std_logic_vector(NUM_PADS-1 downto 0); -- touch pads state
+    ready_o     : out   std_ulogic; -- system calibration done when high
+    touch_o     : out   std_ulogic_vector(NUM_PADS-1 downto 0); -- touch pads state
     -- touch pads --
     pad_io      : inout std_logic_vector(NUM_PADS-1 downto 0)   -- capacitive touch pads
   );
@@ -84,15 +84,15 @@ architecture captouch_rtl of captouch is
   constant output_time_c : integer := (f_sample_c / f_output_c) - 1;
   constant dcnt_size_c   : integer := scnt_size_c / 4;
   constant channel_one_c : std_logic_vector(NUM_PADS-1 downto 0) := (others => '1');
-  constant filter_one_c  : std_logic_vector(filter_size_c-1 downto 0) := (others => '1');
-  constant filter_zero_c : std_logic_vector(filter_size_c-1 downto 0) := (others => '0');
+  constant filter_one_c  : std_ulogic_vector(filter_size_c-1 downto 0) := (others => '1');
+  constant filter_zero_c : std_ulogic_vector(filter_size_c-1 downto 0) := (others => '0');
 
   -- generators --
-  signal rstn_int       : std_logic := '0'; -- reset also via bitstream (if supported)
+  signal rstn_int       : std_ulogic := '0'; -- reset also via bitstream (if supported)
   signal sample_clk_gen : integer range 0 to sample_time_c;
-  signal sample_clk     : std_logic;
+  signal sample_clk     : std_ulogic;
   signal output_clk_gen : integer range 0 to output_time_c;
-  signal output_clk     : std_logic;
+  signal output_clk     : std_ulogic;
 
   -- controller --
   type ctrl_state_t is (S_INIT_START, S_INIT_DISCHARGE, S_INIT_SAMPLE, S_RUN_START, S_RUN_DISCHARGE, S_RUN_SAMPLE);
@@ -100,18 +100,18 @@ architecture captouch_rtl of captouch is
     state : ctrl_state_t;
     sync0 : std_logic_vector(NUM_PADS-1 downto 0); -- input synchronizer stage 0
     sync1 : std_logic_vector(NUM_PADS-1 downto 0); -- input synchronizer stage 1
-    data  : std_logic_vector(NUM_PADS-1 downto 0); -- current pad state
-    dcnt  : std_logic_vector(dcnt_size_c-1 downto 0); -- discharge counter
-    thres : std_logic_vector(scnt_size_c-1 downto 0); -- threshold counter
-    scnt  : std_logic_vector(scnt_size_c-1 downto 0); -- sample counter
+    data  : std_ulogic_vector(NUM_PADS-1 downto 0); -- current pad state
+    dcnt  : std_ulogic_vector(dcnt_size_c-1 downto 0); -- discharge counter
+    thres : std_ulogic_vector(scnt_size_c-1 downto 0); -- threshold counter
+    scnt  : std_ulogic_vector(scnt_size_c-1 downto 0); -- sample counter
   end record;
   signal ctrl : ctrl_t;
 
   -- sample timing threshold --
-  signal threshold : std_logic_vector(scnt_size_c-1 downto 0);
+  signal threshold : std_ulogic_vector(scnt_size_c-1 downto 0);
 
   -- output filter --
-  type   out_filter_t is array (NUM_PADS-1 downto 0) of std_logic_vector(filter_size_c-1 downto 0);
+  type   out_filter_t is array (NUM_PADS-1 downto 0) of std_ulogic_vector(filter_size_c-1 downto 0);
   signal out_filter : out_filter_t;
 
 begin
@@ -196,14 +196,14 @@ begin
         
           when S_INIT_DISCHARGE => -- discharge pads
           -- ------------------------------------------------------------
-            ctrl.dcnt <= std_logic_vector(unsigned(ctrl.dcnt) + 1);
+            ctrl.dcnt <= std_ulogic_vector(unsigned(ctrl.dcnt) + 1);
             if (ctrl.dcnt(ctrl.dcnt'left) = '1') then
               ctrl.state <= S_INIT_SAMPLE;
             end if;
 
           when S_INIT_SAMPLE => -- calibrate buttons (time until charged WITHOUT button push)
           -- ------------------------------------------------------------
-            ctrl.thres <= std_logic_vector(unsigned(ctrl.thres) + 1); -- time required to charge base capacitance
+            ctrl.thres <= std_ulogic_vector(unsigned(ctrl.thres) + 1); -- time required to charge base capacitance
             if (ctrl.thres(ctrl.thres'left) = '1') then -- overflow
               ctrl.state <= S_INIT_START;
             elsif (ctrl.sync1 = channel_one_c) then -- all buttons charged
@@ -218,16 +218,16 @@ begin
 
           when S_RUN_DISCHARGE => -- sample phase 1: discharge pads
           -- ------------------------------------------------------------
-            ctrl.dcnt <= std_logic_vector(unsigned(ctrl.dcnt) + 1);
+            ctrl.dcnt <= std_ulogic_vector(unsigned(ctrl.dcnt) + 1);
             if (ctrl.dcnt(ctrl.dcnt'left) = '1') then
               ctrl.state <= S_RUN_SAMPLE;
             end if;
 
           when S_RUN_SAMPLE => -- sample phase 2: sample pads after crossing timing threshold
           -- ------------------------------------------------------------
-            ctrl.scnt <= std_logic_vector(unsigned(ctrl.scnt) + 1);
+            ctrl.scnt <= std_ulogic_vector(unsigned(ctrl.scnt) + 1);
             if (ctrl.scnt = threshold) then -- sample!
-              ctrl.data  <= not std_logic_vector(ctrl.sync1);
+              ctrl.data  <= not std_ulogic_vector(ctrl.sync1);
               ctrl.state <= S_RUN_START;
             end if;
 
@@ -242,7 +242,7 @@ begin
 
   -- threshold time to distinguish between pushed and not-pushed state --
   threshold_comp: process(ctrl.thres)
-    variable tmp_v : std_logic_vector(scnt_size_c-1 downto 0);
+    variable tmp_v : std_ulogic_vector(scnt_size_c-1 downto 0);
   begin
     case SENSITIVITY is -- this defines the additional time required to charge the pad's increased capacitance (+ finger)
       when 1 => tmp_v := "0000" & ctrl.thres(ctrl.thres'left downto 4); -- 0.0625 * thres [high]
@@ -250,7 +250,7 @@ begin
       when 3 => tmp_v := "00" & ctrl.thres(ctrl.thres'left downto 2); -- 0.25 * thres [low]
       when others => tmp_v := (others => '0'); -- invalid
     end case;
-    threshold <= std_logic_vector(unsigned(ctrl.thres) + unsigned(tmp_v)); -- threshold = (1 + [0.0625, 0.125, 0.25]) * thres
+    threshold <= std_ulogic_vector(unsigned(ctrl.thres) + unsigned(tmp_v)); -- threshold = (1 + [0.0625, 0.125, 0.25]) * thres
   end process;
 
   -- calibration done? --
